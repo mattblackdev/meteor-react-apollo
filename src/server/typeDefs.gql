@@ -1,0 +1,122 @@
+type Query {
+  users: [User]
+  currentUser: User
+  businesses(_id: ID): [Business!]!
+  businessBySlug(slug: String!): Business
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  PARTNER
+}
+
+type User @mongo(name: "users") {
+  _id: ID!
+  username: String
+  profile: UserProfile!
+  emails: [Email!]!
+  businesses: [Business] @link(to: "users")
+}
+
+type UserProfile {
+  name: String!
+  phoneNumber: String!
+}
+
+type Email {
+  address: String!
+  verified: Boolean!
+}
+
+type ShortLink {
+  url: String!
+  hash: String!
+  long_url: String!
+}
+
+type Address {
+  address1: String!
+  address2: String
+  city: String!
+  state: String!
+  zip: String!
+}
+
+type Business @mongo(name: "businesses") {
+  _id: ID!
+  name: String!
+  address: Address!
+  users: [User] @link(field: "userLinks", metadata: true)
+  slug: String!
+  googlePlaceId: String!
+  googleReviewShortLink: ShortLink!
+  reviewDetails: ReviewDetails!
+  customers: [Customer!]!
+  currentUserRole: Role
+  smsTemplates: [SmsTemplate!]!
+}
+
+type ReviewDetails {
+  googleRating: Int
+  googleReviews: [Review]
+}
+
+type Review {
+  author_name: String
+  author_url: String
+  language: String
+  profile_photo_url: String
+  rating: Int!
+  relative_time_description: String
+  text: String
+  time: Int!
+}
+
+type Customer {
+  _id: ID!
+  name: String!
+  phone: String!
+  email: String!
+}
+
+type SmsTemplate {
+  _id: ID!
+  name: String!
+  template: String!
+  default: Boolean!
+}
+
+type Mutation {
+  sendGoogleReviewSMS(input: CustomerCheckInInput!): Boolean
+  signUpBusiness(input: SignUpBusinessInput!): Business!
+}
+
+input CustomerCheckInInput {
+  name: String!
+  phone: String!
+  email: String!
+}
+
+input SignUpBusinessInput {
+  name: String!
+  address: AddressInput!
+  # If no owner, use currently logged in user
+  owner: OwnerInput
+}
+
+input AddressInput {
+  address1: String!
+  address2: String
+  city: String!
+  zip: String!
+  state: String!
+}
+
+input OwnerInput {
+  name: String!
+  phone: String!
+  email: String!
+  # TODO: If no password, send email
+  password: String
+}
