@@ -53,53 +53,68 @@ function CheckInForm() {
         return (
           <form onSubmit={handleSubmit} autoComplete="off">
             <Typography
-              variant="h2"
+              variant="h3"
               gutterBottom
               style={{ textAlign: 'center' }}
             >
-              Check in
+              Check In
             </Typography>
             <TextField
               id="name"
               name="name"
-              label="Name"
+              placeholder="Name"
+              autoComplete="new-password"
               value={values.name}
               onChange={handleChange}
               onBlur={handleBlur}
               error={errors.name && touched.name}
-              helperText={errors.name && touched.name ? errors.name : undefined}
+              helperText={
+                errors.name && touched.name
+                  ? errors.name
+                  : values.name
+                  ? 'Name'
+                  : undefined
+              }
               fullWidth
               margin="normal"
               variant="outlined"
-              autoComplete="new-name"
             />
             <TextField
               id="phone"
               name="phone"
               type="tel"
-              label="Phone Number"
+              placeholder="Phone Number"
+              autoComplete="new-password"
               value={values.phone}
               onChange={handleChange}
               onBlur={handleBlur}
               error={errors.phone && touched.phone}
               helperText={
-                errors.phone && touched.phone ? errors.phone : undefined
+                errors.phone && touched.phone
+                  ? errors.phone
+                  : values.phone
+                  ? 'Phone Number'
+                  : undefined
               }
               fullWidth
               margin="normal"
               variant="outlined"
-              autoComplete="new-phone"
             />
             <TextField
               id="email"
               name="email"
-              label="Email Address"
+              placeholder="Email Address"
+              autoComplete="new-password"
               value={values.email}
               onChange={handleChange}
               onBlur={handleBlur}
               error={errors.email && touched.email}
               helperText={
-                errors.email && touched.email ? errors.email : undefined
+                errors.email && touched.email
+                  ? errors.email
+                  : values.email
+                  ? 'Email Address'
+                  : undefined
               }
               fullWidth
               margin="normal"
@@ -114,9 +129,17 @@ function CheckInForm() {
                 color="primary"
                 disabled={!dirty || isSubmitting}
                 fullWidth
-                style={{ minHeight: 60 }}
+                style={{ minHeight: 60, marginBottom: 16 }}
               >
-                Request Google Review
+                Submit
+              </Button>
+              <Button
+                color="secondary"
+                onClick={handleReset}
+                disabled={!dirty || isSubmitting}
+                fullWidth
+              >
+                Reset
               </Button>
             </div>
           </form>
@@ -132,8 +155,8 @@ export default function CheckIn({ currentUser, path }) {
     <div>
       <Grid container justify="center">
         <Grid item xs={12} style={{ textAlign: 'center' }}>
-          <Typography variant="h4" style={{ marginTop: 64, marginBottom: 64 }}>
-            Company X logo here
+          <Typography variant="h2" style={{ marginTop: 64, marginBottom: 64 }}>
+            Logo Here
           </Typography>
         </Grid>
         <Grid item style={{ maxWidth: 500 }}>

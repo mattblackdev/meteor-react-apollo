@@ -1,0 +1,12 @@
+mutation CreateSmsTemplate($input: CreateSmsTemplateInput!) {
+  createSmsTemplate(input: $input) {
+    _id
+    name
+    smsTemplates {
+      _id
+      name
+      template
+      default
+    }
+  }
+}

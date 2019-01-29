@@ -11,6 +11,7 @@ import Menu from '@material-ui/core/Menu'
 import MenuItem from '@material-ui/core/MenuItem'
 import Chip from '@material-ui/core/Chip'
 import Grid from '@material-ui/core/Grid'
+import Divider from '@material-ui/core/Divider'
 import Toolbar from '@material-ui/core/Toolbar'
 import Dialog from '@material-ui/core/Dialog'
 import DialogActions from '@material-ui/core/DialogActions'
@@ -28,11 +29,15 @@ import MoreIcon from '@material-ui/icons/MoreVert'
 import TrashIcon from '@material-ui/icons/Delete'
 import FavIcon from '@material-ui/icons/Favorite'
 import gql from 'graphql-tag'
-import { useQuery } from 'react-apollo-hooks'
+import { useQuery, useMutation } from 'react-apollo-hooks'
 
 import NavBar from 'client/components/NavBar'
 import StarRating from 'client/components/StarRating'
-import useList from 'client/hooks/useList'
+import SendTextDialog from 'client/components/SendTextDialog'
+import UpdateSmsTemplate from 'client/mutations/UpdateSmsTemplate.gql'
+import CreateSmsTemplate from 'client/mutations/CreateSmsTemplate.gql'
+import SetDefaultSmsTemplate from 'client/mutations/SetDefaultSmsTemplate.gql'
+import DeleteSmsTemplate from 'client/mutations/DeleteSmsTemplate.gql'
 
 const DashboardQuery = gql`
   query {
@@ -89,6 +94,7 @@ function BusinessListItem({ business, onClick }) {
 const BusinessBySlug = gql`
   query BusinessBySlug($slug: String!) {
     businessBySlug(slug: $slug) {
+      _id
       name
       currentUserRole
       reviewDetails {
@@ -160,26 +166,78 @@ function getTrueSmsLength(template) {
     .trim()
     .replace('[Customer Name]', '')
     .replace('[Google Review Link]', '').length
-  return baseLength + 30 + 21
+  return baseLength + 30 + 21 // TODO: Use real lengths from schema
+}
+
+function populateTemplate(template) {
+  return template
+    .replace('[Customer Name]', 'John Doe')
+    .replace('[Google Review Link]', 'http://bit.ly/2FK88kN')
 }
 
 function TextTemplates({ business }) {
+  const [creating, setCreating] = useState(null)
   const [editing, setEditing] = useState(null)
   const [menu, setMenu] = useState(null)
   const [deleting, setDeleting] = useState({ open: false, template: {} })
+  const [send, setSend] = useState({ open: false, template: {} })
+  const updateSmsTemplate = useMutation(UpdateSmsTemplate)
+  const createSmsTemplate = useMutation(CreateSmsTemplate)
+  const setDefaultSmsTemplate = useMutation(SetDefaultSmsTemplate)
+  const deleteSmsTemplate = useMutation(DeleteSmsTemplate)
 
-  function handleOnChange(e) {
+  const templates = creating
+    ? [creating, ...business.smsTemplates]
+    : business.smsTemplates
+
+  const handleOpenSend = template => e => {
+    setSend({ open: true, template })
+  }
+
+  function handleCloseSend() {
+    setSend({ ...send, open: false })
+  }
+
+  function handleCreate() {
+    const defaultTemplate = {
+      _id: 'creating',
+      name: '',
+      template: `Hi [Customer Name]! Thanks so much for choosing ${
+        business.name
+      }. Please tap this link to let us know how we're doing. [Google Review Link]`,
+      default: false,
+    }
+    setCreating(defaultTemplate)
+    setEditing(defaultTemplate)
+  }
+
+  function handleTemplateNameOnChange(e) {
+    const value = e.target.value
+    setEditing({
+      ...editing,
+      name: value,
+      submitError: null,
+    })
+  }
+
+  function handleTemplateOnChange(e) {
     const value = e.target.value
     setEditing({
       ...editing,
       template: value,
+      submitError: null,
     })
   }
 
   const handleMenu = template => e => {
+    const showDelete = !template.default && templates.length > 1
+    const showDefault = !template.default
+
     setMenu({
       template,
       anchorEl: e.currentTarget,
+      showDefault,
+      showDelete,
     })
   }
 
@@ -188,8 +246,69 @@ function TextTemplates({ business }) {
     setMenu(null)
   }
 
+  function handleSaveEdit() {
+    setEditing({
+      ...editing,
+      submitting: true,
+    })
+    updateSmsTemplate({
+      variables: {
+        input: {
+          _id: editing._id,
+          businessId: business._id,
+          name: editing.name,
+          template: editing.template,
+        },
+      },
+    }).then(
+      () => {
+        setEditing(null)
+      },
+      err => {
+        setEditing({
+          ...editing,
+          submitting: false,
+          submitError: err.message,
+        })
+      },
+    )
+  }
+
+  function handleSaveCreate() {
+    setEditing({
+      ...editing,
+      submitting: true,
+    })
+    createSmsTemplate({
+      variables: {
+        input: {
+          businessId: business._id,
+          name: editing.name,
+          template: editing.template,
+        },
+      },
+    }).then(
+      () => {
+        setCreating(null)
+        setEditing(null)
+      },
+      err => {
+        setEditing({
+          ...editing,
+          submitting: false,
+          submitError: err.message,
+        })
+      },
+    )
+  }
+
   function handleMakeDefault() {
+    const { _id } = menu.template
     setMenu(null)
+    setDefaultSmsTemplate({
+      variables: { input: { _id, businessId: business._id } },
+    })
+    // TODO: Catch error show snack
   }
 
   function handleSetDeleting() {
@@ -202,85 +321,147 @@ function TextTemplates({ business }) {
   }
 
   function handleDelete() {
+    const { _id } = deleting.template
     handleCloseDeleteDialog()
+    deleteSmsTemplate({
+      variables: { input: { _id, businessId: business._id } },
+    })
+    // TODO: Catch error snack
   }
 
   return (
     <Fragment>
       <Toolbar disableGutters style={{ marginBottom: 8 }}>
-        <Typography variant="h4">Sms Templates</Typography>
+        <Typography variant="h5">SMS Templates</Typography>
         <div style={{ flexGrow: 1 }} />
-        <Button color="primary" variant="outlined">
+        <Button color="primary" variant="outlined" onClick={handleCreate}>
           <AddIcon style={{ marginRight: 8 }} />
           Create
         </Button>
       </Toolbar>
       <Paper>
         <List>
-          {business.smsTemplates.map(template => {
+          {templates.map((template, i) => {
+            const showDivider = i < templates.length - 1
             if (editing && editing._id === template._id) {
-              const dirty = editing.template.trim() !== template.template
+              const dirty =
+                editing.template.trim() !== template.template ||
+                editing.name !== template.name
               const trueLength = getTrueSmsLength(editing.template)
               const missingVariables = checkSmsVariables(editing.template)
-              const error = trueLength > 255 || Boolean(missingVariables)
+              const error =
+                trueLength > 255 ||
+                Boolean(missingVariables) ||
+                Boolean(editing.submitError)
 
               return (
-                <ListItem key={template._id} component="div">
-                  <IconButton
-                    color="secondary"
-                    onClick={() => setEditing(null)}
-                  >
-                    <CloseIcon />
-                  </IconButton>
-                  <TextField
-                    fullWidth
-                    value={editing.template}
-                    onChange={handleOnChange}
-                    multiline
-                    style={{ marginRight: 28 }}
-                    helperText={missingVariables || `${trueLength}/255`}
-                    FormHelperTextProps={{
-                      component: function helperText(props) {
-                        return <div {...props} style={{ textAlign: 'right' }} />
-                      },
-                    }}
-                    error={error}
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton color="primary" disabled={error || !dirty}>
-                      <CheckIcon />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
+                <Fragment key={template._id}>
+                  <ListItem component="div">
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        flex: 1,
+                      }}
+                    >
+                      <TextField
+                        label="Name"
+                        placeholder="My Template"
+                        value={editing.name}
+                        onChange={handleTemplateNameOnChange}
+                        margin="normal"
+                        style={{ maxWidth: 200 }}
+                        max="100"
+                        required
+                        variant="outlined"
+                      />
+                      <TextField
+                        variant="outlined"
+                        fullWidth
+                        value={editing.template}
+                        onChange={handleTemplateOnChange}
+                        multiline
+                        helperText={
+                          missingVariables ||
+                          editing.submitError ||
+                          `${trueLength}/255`
+                        }
+                        FormHelperTextProps={{
+                          component: function helperText(props) {
+                            return (
+                              <div {...props} style={{ textAlign: 'right' }} />
+                            )
+                          },
+                        }}
+                        margin="normal"
+                        error={error}
+                      />
+                      <div
+                        style={{
+                          display: 'flex',
+                          flex: 1,
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <IconButton
+                          color="secondary"
+                          onClick={() => {
+                            if (creating) {
+                              setCreating(null)
+                            }
+                            setEditing(null)
+                          }}
+                        >
+                          <CloseIcon />
+                        </IconButton>
+                        <IconButton
+                          color="primary"
+                          disabled={
+                            editing.submitting || error || (!dirty && !creating)
+                          }
+                          onClick={creating ? handleSaveCreate : handleSaveEdit}
+                        >
+                          <CheckIcon />
+                        </IconButton>
+                      </div>
+                    </div>
+                  </ListItem>
+                  {showDivider && <Divider />}
+                </Fragment>
               )
             } else {
               return (
-                <ListItem key={template._id} button>
-                  <IconButton>
-                    <SmsIcon color={template.default ? 'primary' : 'inherit'} />
-                  </IconButton>
-                  <ListItemText
-                    primary={
-                      <Typography variant="h6">{template.name}</Typography>
-                    }
-                    secondary={template.template}
-                    secondaryTypographyProps={{ variant: 'body1' }}
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton
-                      aria-label="More Options"
-                      aria-owns={
-                        menu && menu.anchorEl
-                          ? 'sms-template-options-menu'
-                          : undefined
-                      }
-                      aria-haspopup="true"
-                      onClick={handleMenu(template)}
-                    >
-                      <MoreIcon />
+                <Fragment key={template._id}>
+                  <ListItem button onClick={handleOpenSend(template)}>
+                    <IconButton onClick={handleOpenSend(template)}>
+                      <SmsIcon
+                        color={template.default ? 'primary' : 'inherit'}
+                      />
                     </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
+                    <ListItemText
+                      primary={
+                        <Typography variant="h6">{template.name}</Typography>
+                      }
+                      secondary={populateTemplate(template.template)}
+                      secondaryTypographyProps={{ variant: 'body1' }}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        aria-label="More Options"
+                        aria-owns={
+                          menu && menu.anchorEl
+                            ? 'sms-template-options-menu'
+                            : undefined
+                        }
+                        aria-haspopup="true"
+                        onClick={handleMenu(template)}
+                      >
+                        <MoreIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                  {showDivider && <Divider />}
+                </Fragment>
               )
             }
           })}
@@ -291,17 +472,24 @@ function TextTemplates({ business }) {
         anchorEl={menu && menu.anchorEl}
         open={Boolean(menu)}
         onClose={() => setMenu(null)}
+        MenuListProps={{
+          style: { minWidth: 128 },
+        }}
       >
         <MenuItem onClick={handleEdit}>
           <EditIcon style={{ marginRight: 8 }} /> Edit
         </MenuItem>
-        <MenuItem onClick={handleMakeDefault}>
-          <FavIcon style={{ marginRight: 8 }} /> Default
-        </MenuItem>
-        <MenuItem onClick={handleSetDeleting}>
-          <TrashIcon style={{ marginRight: 8 }} />
-          Delete
-        </MenuItem>
+        {menu && menu.showDefault && (
+          <MenuItem onClick={handleMakeDefault}>
+            <FavIcon style={{ marginRight: 8 }} /> Default
+          </MenuItem>
+        )}
+        {menu && menu.showDelete && (
+          <MenuItem onClick={handleSetDeleting}>
+            <TrashIcon style={{ marginRight: 8 }} />
+            Delete
+          </MenuItem>
+        )}
       </Menu>
       <Dialog
         open={deleting.open}
@@ -324,6 +512,7 @@ function TextTemplates({ business }) {
           </Button>
         </DialogActions>
       </Dialog>
+      <SendTextDialog {...send} onClose={handleCloseSend} business={business} />
     </Fragment>
   )
 }
@@ -331,7 +520,7 @@ function TextTemplates({ business }) {
 function ReviewDetails({ business }) {
   return (
     <Fragment>
-      <Typography variant="h4">
+      <Typography variant="h5">
         Google Rating: {business.reviewDetails.googleRating} / 5
       </Typography>
       <List>

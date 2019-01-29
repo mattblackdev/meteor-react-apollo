@@ -1,0 +1,8 @@
+mutation SendText($input: SendTextInput!) {
+  sendText(input: $input) {
+    _id
+    customers {
+      name
+    }
+  }
+}

@@ -5,18 +5,53 @@ type Query {
   businessBySlug(slug: String!): Business
 }
 
-enum Role {
-  OWNER
-  ADMIN
-  PARTNER
-}
-
 type User @mongo(name: "users") {
   _id: ID!
   username: String
   profile: UserProfile!
   emails: [Email!]!
   businesses: [Business] @link(to: "users")
+}
+
+type Business @mongo(name: "businesses") {
+  _id: ID!
+  name: String!
+  address: Address!
+  users: [User] @link(field: "userLinks", metadata: true)
+  slug: String!
+  googlePlaceId: String!
+  googleReviewShortLink: ShortLink!
+  reviewDetails: ReviewDetails!
+  customers: [Customer] @link(to: "business")
+  smsTemplates: [SmsTemplate!]!
+  smsMessages: [SmsMessage] @link(to: "business")
+  currentUserRole: Role
+}
+
+type Customer @mongo(name: "customers") {
+  _id: ID!
+  name: String!
+  phone: String!
+  email: String!
+  business: Business @link(field: "businessId")
+}
+
+type SmsMessage @mongo(name: "smsMessages") {
+  _id: ID!
+  customer: Customer @link(field: "customerId")
+  business: Business @link(field: "businessId")
+  templateId: ID!
+  customized: Boolean!
+  message: String!
+  link: ShortLink!
+  sendDate: Date!
+  clickedDate: Date
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  PARTNER
 }
 
 type UserProfile {
@@ -43,20 +78,6 @@ type Address {
   zip: String!
 }
 
-type Business @mongo(name: "businesses") {
-  _id: ID!
-  name: String!
-  address: Address!
-  users: [User] @link(field: "userLinks", metadata: true)
-  slug: String!
-  googlePlaceId: String!
-  googleReviewShortLink: ShortLink!
-  reviewDetails: ReviewDetails!
-  customers: [Customer!]!
-  currentUserRole: Role
-  smsTemplates: [SmsTemplate!]!
-}
-
 type ReviewDetails {
   googleRating: Int
   googleReviews: [Review]
@@ -73,13 +94,6 @@ type Review {
   time: Int!
 }
 
-type Customer {
-  _id: ID!
-  name: String!
-  phone: String!
-  email: String!
-}
-
 type SmsTemplate {
   _id: ID!
   name: String!
@@ -87,9 +101,55 @@ type SmsTemplate {
   default: Boolean!
 }
 
+enum When {
+  NOW
+  ONE_HOUR
+  TWO_HOURS
+  TONIGHT
+  TOMORROW
+}
+
 type Mutation {
+  sendText(input: SendTextInput!): Business!
   sendGoogleReviewSMS(input: CustomerCheckInInput!): Boolean
   signUpBusiness(input: SignUpBusinessInput!): Business!
+  createSmsTemplate(input: CreateSmsTemplateInput!): Business!
+  updateSmsTemplate(input: UpdateSmsTemplateInput!): Business!
+  setDefaultSmsTemplate(input: SetDefaultSmsTemplateInput!): Business!
+  deleteSmsTemplate(input: DeleteSmsTemplateInput!): Business!
+}
+
+input SendTextInput {
+  businessId: ID!
+  templateId: ID!
+  name: String!
+  phone: String
+  email: String
+  message: String!
+  when: When!
+}
+
+input CreateSmsTemplateInput {
+  businessId: ID!
+  name: String!
+  template: String!
+}
+
+input DeleteSmsTemplateInput {
+  _id: ID!
+  businessId: ID!
+}
+
+input UpdateSmsTemplateInput {
+  _id: ID!
+  businessId: ID!
+  template: String
+  name: String
+}
+
+input SetDefaultSmsTemplateInput {
+  _id: ID!
+  businessId: ID!
 }
 
 input CustomerCheckInInput {

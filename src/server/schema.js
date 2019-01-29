@@ -71,6 +71,36 @@ load({
       },
     },
     Mutation: {
+      sendText: async (
+        _,
+        {
+          input: { businessId, templateId, name, phone, email, message, when },
+        },
+        ctx,
+        ast,
+      ) => {
+        if (!ctx.userId) throw new Error('Not authorized')
+        // TODO: Sanatize & validate input
+        const selector = {
+          _id: businessId,
+          userLinks: {
+            $elemMatch: {
+              _id: ctx.userId,
+              role: { $in: ['OWNER', 'PARTNER', 'ADMIN'] },
+            },
+          },
+          'smsTemplates._id': templateId,
+        }
+
+        let business = ctx.db.businesses.findOne(selector)
+        if (!business) throw new Error('Could not find business')
+
+        return ctx.db.businesses
+          .astToQuery(ast, {
+            $filters: { _id: businessId },
+          })
+          .fetchOne()
+      },
       sendGoogleReviewSMS: async (
         _,
         { input: { name, phone, email } },
@@ -168,6 +198,134 @@ load({
           .astToQuery(ast, { $filters: { _id } })
           .fetchOne()
         return doc
+      },
+      createSmsTemplate(_, { input }, ctx, ast) {
+        if (!ctx.userId) throw new Error('Not authorized')
+        // TODO: Sanatize & validate input
+        const selector = {
+          _id: input.businessId,
+          userLinks: {
+            $elemMatch: {
+              _id: ctx.userId,
+              role: { $in: ['OWNER', 'PARTNER'] },
+            },
+          },
+        }
+        // TODO: Handle error (and updateResult === 0 )
+        const updateResult = ctx.db.businesses.update(selector, {
+          $push: {
+            smsTemplates: {
+              _id: Random.id(),
+              name: input.name,
+              template: input.template,
+              default: false,
+            },
+          },
+        })
+        if (!updateResult) throw new Error('Template could not be created')
+
+        // TODO: Check read permissions?
+        return ctx.db.businesses
+          .astToQuery(ast, { $filters: { _id: input.businessId } })
+          .fetchOne()
+      },
+      updateSmsTemplate(_, { input }, ctx, ast) {
+        if (!ctx.userId) throw new Error('Not authorized')
+        // TODO: Sanatize & validate input
+        const selector = {
+          _id: input.businessId,
+          userLinks: {
+            $elemMatch: {
+              _id: ctx.userId,
+              role: { $in: ['OWNER', 'PARTNER'] },
+            },
+          },
+          'smsTemplates._id': input._id,
+        }
+        // TODO: Handle error (and updateResult === 0 )
+        const updateResult = ctx.db.businesses.update(selector, {
+          $set: {
+            'smsTemplates.$.name': input.name,
+            'smsTemplates.$.template': input.template,
+          },
+        })
+        if (!updateResult) throw new Error('Template could not be updated')
+
+        // TODO: Check read permissions?
+        return ctx.db.businesses
+          .astToQuery(ast, { $filters: { _id: input.businessId } })
+          .fetchOne()
+      },
+      setDefaultSmsTemplate(_, { input }, ctx, ast) {
+        if (!ctx.userId) throw new Error('Not authorized')
+        // TODO: Sanatize & validate input
+        const commonSelector = {
+          _id: input.businessId,
+          userLinks: {
+            $elemMatch: {
+              _id: ctx.userId,
+              role: { $in: ['OWNER', 'PARTNER'] },
+            },
+          },
+        }
+        const currentDefaultSelector = {
+          ...commonSelector,
+          'smsTemplates.default': true,
+        }
+        const updateDefaultSelector = {
+          ...commonSelector,
+          'smsTemplates._id': input._id,
+        }
+
+        // Set all templates' default flag to false
+        ctx.db.businesses.update(
+          currentDefaultSelector,
+          {
+            $set: {
+              'smsTemplates.$.default': false,
+            },
+          },
+          { multi: true }, // TODO: Is this necesarry? probably not
+        )
+
+        // Then set this one to true
+        const updateResult = ctx.db.businesses.update(updateDefaultSelector, {
+          $set: {
+            'smsTemplates.$.default': true,
+          },
+        })
+        if (!updateResult) throw new Error('Template could not be updated')
+
+        // TODO: Check read permissions?
+        return ctx.db.businesses
+          .astToQuery(ast, { $filters: { _id: input.businessId } })
+          .fetchOne()
+      },
+      deleteSmsTemplate(_, { input }, ctx, ast) {
+        if (!ctx.userId) throw new Error('Not authorized')
+        // TODO: Sanatize & validate input
+        const selector = {
+          _id: input.businessId,
+          userLinks: {
+            $elemMatch: {
+              _id: ctx.userId,
+              role: { $in: ['OWNER', 'PARTNER'] },
+            },
+          },
+          'smsTemplates._id': input._id,
+        }
+        // TODO: Handle error (and updateResult === 0 )
+        const updateResult = ctx.db.businesses.update(selector, {
+          $pull: {
+            smsTemplates: { _id: input._id },
+          },
+        })
+        if (!updateResult) throw new Error('Template could not be removed')
+
+        // TODO: Check read permissions?
+        return ctx.db.businesses
+          .astToQuery(ast, { $filters: { _id: input.businessId } })
+          .fetchOne()
       },
     },
   },

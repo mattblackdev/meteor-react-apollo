@@ -1,0 +1,12 @@
+mutation DeleteSmsTemplate($input: DeleteSmsTemplateInput!) {
+  deleteSmsTemplate(input: $input) {
+    _id
+    name
+    smsTemplates {
+      _id
+      name
+      template
+      default
+    }
+  }
+}
