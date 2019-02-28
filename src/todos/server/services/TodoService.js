@@ -1,7 +1,6 @@
 export default class TodoService {
   constructor({ collection }) {
     this.collection = collection
-    console.log('Collection', this.collection)
   }
 
   createTodo(todo, ast) {
