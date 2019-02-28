@@ -1,0 +1,60 @@
+# Restore dependency cache section:
+- restore_cache:
+    name: Restore Meteor bin cache
+    key: meteor-bin-cache-{{ checksum ".meteor/release" }}
+- restore_cache:
+    name: Restore Meteor cache
+    key: meteor-cache-{{ checksum ".meteor/release" }}
+- restore_cache:
+    name: Restore NPM/Yarn cache
+    key: npm-cache-{{ checksum "package.json" }} # should use package.lock/yarn.lock here
+- restore_cache:
+    name: Restore Meteor Package cache
+    key: packages-cache-{{ checksum ".meteor/versions" }}
+
+# Install dependency cache section:
+- run:
+    name: Restore or install Meteor
+    command: |
+      if [ -e ~/build-temp/meteor-bin ]
+      then
+          echo "Cached Meteor bin found, restoring it"
+          sudo cp ~/build-temp/meteor-bin /usr/local/bin/meteor
+      else
+          echo "No cached Meteor bin found."
+          curl https://install.meteor.com | /bin/sh
+      fi
+- run: meteor --version
+- run: meteor list # you might think you can remove this line but if we do our builds time out almost every time.
+- run: meteor npm install -g yarn
+- run: meteor yarn
+
+# Save dependency cache section:
+- save_cache:
+    name: Save Meteor cache
+    key: meteor-cache-{{ checksum ".meteor/release" }}
+    paths:
+      - '~/.meteor'
+- run:
+    name: Copy Meteor bin to build cache
+    command: |
+      mkdir -p ~/build-temp
+      cp /usr/local/bin/meteor ~/build-temp/meteor-bin
+- save_cache:
+    name: Save Meteor bin cache
+    key: meteor-bin-cache-{{ checksum ".meteor/release" }}
+    paths:
+      - '~/build-temp'
+- save_cache:
+    name: Save NPM/Yarn cache
+    key: npm-cache-{{ checksum "package.json" }}
+    paths:
+      - 'node_modules'
+- save_cache:
+    name: Save Meteor Package cache
+    key: packages-cache-{{ checksum ".meteor/versions" }}
+    paths:
+      - './.meteor/local/build'
+      - './.meteor/local/bundler-cache'
+      - './.meteor/local/isopacks'
+      - './.meteor/local/plugin-cache'

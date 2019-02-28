@@ -1,0 +1,21 @@
+type Todo @mongo(name: "todos") {
+  _id: ID!
+  description: String!
+}
+
+input CreateTodoInput {
+  description: String!
+}
+
+input DeleteTodoInput {
+  _id: ID!
+}
+
+type Query {
+  todos: [Todo!]!
+}
+
+type Mutation {
+  createTodo(input: CreateTodoInput!): Todo!
+  deleteTodo(input: DeleteTodoInput!): Todo!
+}

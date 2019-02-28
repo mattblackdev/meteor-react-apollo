@@ -1,0 +1,8 @@
+type Query {
+  users: [User]
+}
+
+type User @mongo(name: "users") {
+  _id: ID!
+  username: String
+}
